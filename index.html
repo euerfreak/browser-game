@@ -127,7 +127,6 @@
   #timer-bar {
     height: 100%;
     background: linear-gradient(90deg, var(--accent), var(--accent2));
-    transition: width 0.1s linear;
     box-shadow: 0 0 10px var(--accent);
   }
 
@@ -804,6 +803,8 @@ canvas.addEventListener('click', e => {
     spawnParticles(x, y, color);
     spawnRipple(x, y, color);
     showScorePop(x-20, y-20, `+${Math.round(pts * multiplier)}`);
+    taskTimer = 0;
+    lastTickPct = 1;
     spawnTarget();
   } else {
     streak = 0;
@@ -843,6 +844,8 @@ canvas.addEventListener('mouseup', e => {
     showScorePop(cx-20, cy-30, `+${Math.round(pts * multiplier)}`, '#ff0080');
     clearDrawGuide();
     drawingPoints = [];
+    taskTimer = 0;
+    lastTickPct = 1;
     spawnTarget();
   } else {
     // Allow retry within time
