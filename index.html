@@ -229,13 +229,34 @@ function pop(x,y,text,color='#7fff00'){
 // ══════════════════════════════════════════════════════
 //  TASKS
 // ══════════════════════════════════════════════════════
+
+// roundRect polyfill for older browsers
+function roundRect(cx, x, y, w, h, r){
+  cx.beginPath();
+  cx.moveTo(x+r, y);
+  cx.lineTo(x+w-r, y);
+  cx.arcTo(x+w, y, x+w, y+r, r);
+  cx.lineTo(x+w, y+h-r);
+  cx.arcTo(x+w, y+h, x+w-r, y+h, r);
+  cx.lineTo(x+r, y+h);
+  cx.arcTo(x, y+h, x, y+h-r, r);
+  cx.lineTo(x, y+r);
+  cx.arcTo(x, y, x+r, y, r);
+  cx.closePath();
+}
+
 function spawnTask(){
-  // hide all special UIs
   drawHint.classList.remove('on');
   spaceKey.classList.remove('on');
   drawing=false; dpts=[];
   tTimer=0; lastTickPct=1; shakeP=0;
-  sliderDrag=null;
+  sliderDrag=null; arrowFlash=0;
+  // reset all canvas state
+  ctx.setLineDash([]);
+  ctx.lineCap='butt';
+  ctx.lineJoin='miter';
+  ctx.shadowBlur=0;
+  ctx.globalAlpha=1;
 
   const r = Math.random();
   const hasDraw = level >= 2;
@@ -392,6 +413,8 @@ function drawDrawPath(){
 }
 
 function drawArrowTask(t){
+  ctx.save();
+  ctx.setLineDash([]);
   const cx=W/2, cy=H/2;
   const {seq,idx}=t;
   const bw=70, bh=70, gap=20;
@@ -400,7 +423,7 @@ function drawArrowTask(t){
   seq.forEach((key,i)=>{
     const bx=startX+i*(bw+gap), by=cy-bh/2;
     const done=i<idx, active=i===idx;
-    ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,10);
+    roundRect(ctx, bx,by,bw,bh,10);
     ctx.fillStyle=done?'rgba(127,255,0,0.15)':active?'rgba(0,245,255,0.12)':'rgba(255,255,255,0.04)';
     ctx.fill();
     ctx.strokeStyle=done?'#7fff00':active?'#00f5ff':'rgba(255,255,255,0.15)';
@@ -408,7 +431,7 @@ function drawArrowTask(t){
     ctx.shadowColor=active?'#00f5ff':done?'#7fff00':'transparent';
     ctx.shadowBlur=active?20:done?10:0;
     ctx.stroke(); ctx.shadowBlur=0;
-    ctx.font=`${active?'bold ':''  }${bw*0.55}px serif`;
+    ctx.font=`${bw*0.55}px serif`;
     ctx.fillStyle=done?'#7fff00':active?'#00f5ff':'rgba(255,255,255,0.3)';
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillText(ARROW_LABELS[key], bx+bw/2, by+bh/2+2);
@@ -418,72 +441,72 @@ function drawArrowTask(t){
   ctx.fillText(`${idx} / ${seq.length} korrekt`, cx, cy-bh/2-22);
   if(arrowFlash>0){
     ctx.globalAlpha=arrowFlash*0.25; ctx.fillStyle='#7fff00';
-    ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
+    ctx.fillRect(0,0,W,H);
     arrowFlash=Math.max(0,arrowFlash-0.12);
   }
+  ctx.restore();
 }
 
 function drawSliderTask(t){
   const {sliders}=t;
+  ctx.save();
   sliders.forEach((s,si)=>{
     const {cx,cy,horiz,reverse,trackLen,thumbR,val,done}=s;
     const half=trackLen/2;
-    // track endpoints
     const x1=horiz?cx-half:cx, y1=horiz?cy:cy-half;
     const x2=horiz?cx+half:cx, y2=horiz?cy:cy+half;
-
-    // goal side indicator (arrow pointing to target end)
-    const targetX = horiz ? (reverse?x1:x2) : cx;
-    const targetY = horiz ? cy : (reverse?y1:y2);
-    const arrowDir = horiz ? (reverse?-1:1) : 0;
-    const arrowDirY = horiz ? 0 : (reverse?-1:1);
+    const targetX = horiz?(reverse?x1:x2):cx;
+    const targetY = horiz?cy:(reverse?y1:y2);
+    const arrowChar = horiz?(reverse?'←':'→'):(reverse?'↑':'↓');
 
     // track background
     ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
-    ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=8; ctx.lineCap='round'; ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=8; ctx.lineCap='round';
+    ctx.setLineDash([]); ctx.shadowBlur=0; ctx.stroke();
 
-    // filled portion (progress from start toward goal)
-    const thumbX = horiz ? cx-half + val*trackLen : cx;
-    const thumbY = horiz ? cy : cy-half + val*trackLen;
-    // draw fill from start toward thumb
-    const fillX1 = horiz?(reverse?thumbX:x1):cx;
-    const fillY1 = horiz?cy:(reverse?thumbY:y1);
-    const fillX2 = horiz?(reverse?x2:thumbX):cx;
-    const fillY2 = horiz?cy:(reverse?y2:thumbY);
+    // filled portion
+    const thumbX=horiz?cx-half+val*trackLen:cx;
+    const thumbY=horiz?cy:cy-half+val*trackLen;
+    const fillX1=horiz?(reverse?thumbX:x1):cx;
+    const fillY1=horiz?cy:(reverse?thumbY:y1);
+    const fillX2=horiz?(reverse?x2:thumbX):cx;
+    const fillY2=horiz?cy:(reverse?y2:thumbY);
     ctx.beginPath(); ctx.moveTo(fillX1,fillY1); ctx.lineTo(fillX2,fillY2);
     ctx.strokeStyle=done?'#7fff00':'#bf5fff'; ctx.lineWidth=8; ctx.lineCap='round';
     ctx.shadowColor=done?'#7fff00':'#bf5fff'; ctx.shadowBlur=done?16:8; ctx.stroke(); ctx.shadowBlur=0;
 
-    // target end marker
+    // target end dot
     ctx.beginPath(); ctx.arc(targetX,targetY,6,0,Math.PI*2);
     ctx.fillStyle=done?'#7fff00':'rgba(255,255,255,0.5)';
     ctx.shadowColor=done?'#7fff00':'transparent'; ctx.shadowBlur=done?14:0;
     ctx.fill(); ctx.shadowBlur=0;
 
-    // direction arrow hint near target
+    // direction arrow hint
     if(!done){
-      const ax=targetX+arrowDir*22, ay=targetY+arrowDirY*22;
-      ctx.font='bold 18px serif'; ctx.fillStyle='rgba(255,255,255,0.35)';
+      ctx.font='bold 20px serif'; ctx.fillStyle='rgba(255,255,255,0.4)';
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      const arrowChar=horiz?(reverse?'←':'→'):(reverse?'↑':'↓');
+      const ax=horiz?targetX+(reverse?-28:28):cx;
+      const ay=horiz?cy:targetY+(reverse?-28:28);
       ctx.fillText(arrowChar,ax,ay);
     }
 
     // thumb
-    const pulse = done ? 0 : 0.08*Math.sin(performance.now()*0.006);
-    ctx.beginPath(); ctx.arc(thumbX,thumbY,thumbR+pulse*thumbR,0,Math.PI*2);
+    const pulse=done?0:0.08*Math.sin(performance.now()*0.006);
+    const tr=thumbR*(1+pulse);
+    ctx.beginPath(); ctx.arc(thumbX,thumbY,tr,0,Math.PI*2);
     ctx.fillStyle=done?'#7fff00':'#bf5fff';
-    ctx.shadowColor=done?'#7fff00':'#bf5fff'; ctx.shadowBlur=done?20:14; ctx.fill(); ctx.shadowBlur=0;
-    ctx.beginPath(); ctx.arc(thumbX,thumbY,(thumbR+pulse*thumbR)*0.45,0,Math.PI*2);
+    ctx.shadowColor=done?'#7fff00':'#bf5fff'; ctx.shadowBlur=done?20:14;
+    ctx.fill(); ctx.shadowBlur=0;
+    ctx.beginPath(); ctx.arc(thumbX,thumbY,tr*0.42,0,Math.PI*2);
     ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fill();
 
-    // slider number label
     if(t.count>1){
       ctx.font=`11px 'Share Tech Mono',monospace`;
       ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText(`${si+1}`, horiz?cx:cx+thumbR+18, horiz?cy-thumbR-14:cy);
+      ctx.fillText(`${si+1}`, horiz?cx:cx+thumbR+20, horiz?cy-thumbR-16:cy);
     }
   });
+  ctx.restore();
 }
 
 function tickParticles(){
