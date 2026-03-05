@@ -175,8 +175,6 @@ let taskTimer=0, taskMaxTime=3000, lastTime=0, animId;
 let particles=[], ripples=[];
 let drawingPoints=[], isDrawing=false;
 let shakeX=0, shakeY=0, shakePower=0;
-// After a draw mouseup, the browser fires a synthetic click — block it once
-let blockClick=false;
 
 const COLORS = ['#00f5ff','#ff0080','#7fff00','#ffcc00','#bf5fff'];
 
@@ -233,24 +231,23 @@ function spawnTask() {
   drawingPoints=[]; isDrawing=false;
   taskTimer=0; lastTickPct=1;
 
-  const canSpecial = level >= 2;
   const roll = Math.random();
 
-  if (canSpecial && roll < 0.25) {
-    // Draw
+  if (roll < 0.25) {
+    // Space — available always
+    const required = 5 + Math.floor(Math.random()*6);
+    currentTask = { type:'space', required, pressed:0 };
+    taskMaxTime = Math.max(3000, 5000-level*150);
+    instruction.textContent = `Drücke LEERTASTE ${required}× !`;
+
+  } else if (level >= 2 && roll < 0.50) {
+    // Draw — available from level 2
     const shapes = ['circle','square'];
     const shape = shapes[Math.floor(Math.random()*shapes.length)];
     currentTask = { type:'draw', shape, minSize: 40+level*5 };
     taskMaxTime = Math.max(4000, 6000-level*200);
     showDrawGuide(shape);
     instruction.textContent = `Male ein${shape==='circle'?'en Kreis':' Viereck'} (Maustaste gedrückt halten)`;
-
-  } else if (canSpecial && roll < 0.50) {
-    // Space
-    const required = 5 + Math.floor(Math.random()*6);
-    currentTask = { type:'space', required, pressed:0 };
-    taskMaxTime = Math.max(3000, 5000-level*150);
-    instruction.textContent = `Drücke LEERTASTE ${required}× !`;
 
   } else {
     // Click
@@ -429,9 +426,12 @@ function gameLoop(ts) {
 }
 
 // ─── Input: click ────────────────────────────────────────────────────
+// blockClickUntil: timestamp until which all canvas click events are suppressed.
+// Set after every mouseup on the canvas to block the browser's synthetic click.
+let blockClickUntil = 0;
+
 canvas.addEventListener('click', e => {
-  // Always consume the blockClick flag, regardless of task type
-  if (blockClick) { blockClick=false; return; }
+  if (performance.now() < blockClickUntil) return; // suppress post-mouseup synthetic click
   if (!gameRunning || !currentTask || currentTask.type!=='click') return;
 
   const rect=canvas.getBoundingClientRect();
@@ -446,7 +446,7 @@ canvas.addEventListener('click', e => {
     showScorePop(x-20,y-20,`+${earned}`);
     spawnTask();
   }
-  // Misclick: no penalty (only timeout penalises)
+  // Misclick: no streak penalty, only timeout penalises
 });
 
 // ─── Input: draw ─────────────────────────────────────────────────────
@@ -464,12 +464,11 @@ canvas.addEventListener('mousemove', e => {
 });
 
 canvas.addEventListener('mouseup', e => {
+  // Block the browser's synthetic click event that always follows mouseup
+  blockClickUntil = performance.now() + 200;
+
   if (!isDrawing) return;
   isDrawing=false;
-
-  // A click event always fires right after mouseup on the same element.
-  // Set the flag NOW so it is consumed by the click handler before any task switch.
-  blockClick=true;
 
   if (!currentTask || currentTask.type!=='draw') return;
 
@@ -530,7 +529,7 @@ function startGame() {
   audioCtx.resume();
   score=0;hits=0;streak=0;level=1;multiplier=1.0;
   particles=[];ripples=[];drawingPoints=[];isDrawing=false;
-  blockClick=false;shakePower=0;shakeX=shakeY=0;
+  blockClickUntil=0;shakePower=0;shakeX=shakeY=0;
   updateHUD();
   overlay.style.display='none';
   gameRunning=true;
