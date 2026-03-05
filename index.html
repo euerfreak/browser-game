@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReaktiX — Klick & Zeichen Spiel</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg: #050510;
+    --surface: #0a0a20;
+    --accent: #00f5ff;
+    --accent2: #ff0080;
+    --accent3: #7fff00;
+    --warn: #ffcc00;
+    --text: #e0e8ff;
+    --dim: #3a3a6a;
+    --glow: 0 0 20px rgba(0,245,255,0.6);
+    --glow2: 0 0 20px rgba(255,0,128,0.6);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    user-select: none;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,245,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,245,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* HUD */
+  #hud {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 56px;
+    background: rgba(5,5,20,0.95);
+    border-bottom: 1px solid var(--dim);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+
+  #logo {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 1.4rem;
+    color: var(--accent);
+    text-shadow: var(--glow);
+    letter-spacing: 4px;
+  }
+
+  #logo span { color: var(--accent2); }
+
+  #hud-center {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+  }
+
+  .hud-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .hud-label {
+    font-size: 0.55rem;
+    color: var(--dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .hud-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  #score-display {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--accent3);
+    text-shadow: 0 0 20px rgba(127,255,0,0.7);
+    min-width: 80px;
+    text-align: right;
+  }
+
+  #score-label {
+    font-size: 0.55rem;
+    color: var(--dim);
+    letter-spacing: 2px;
+    text-align: right;
+  }
+
+  /* Timer bar */
+  #timer-bar-container {
+    position: fixed;
+    top: 56px; left: 0; right: 0;
+    height: 4px;
+    background: var(--surface);
+    z-index: 100;
+  }
+
+  #timer-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.1s linear;
+    box-shadow: 0 0 10px var(--accent);
+  }
+
+  /* Canvas */
+  #gameCanvas {
+    position: fixed;
+    top: 60px; left: 0;
+    width: 100vw;
+    height: calc(100vh - 60px);
+    z-index: 1;
+    cursor: crosshair;
+  }
+
+  /* Instruction overlay */
+  #instruction {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,245,255,0.08);
+    border: 1px solid rgba(0,245,255,0.3);
+    border-radius: 4px;
+    padding: 10px 24px;
+    font-size: 0.85rem;
+    color: var(--accent);
+    letter-spacing: 1px;
+    z-index: 50;
+    text-align: center;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+
+  /* Start / Game Over screens */
+  #overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(5,5,20,0.96);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+  }
+
+  #overlay h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(2rem, 6vw, 4rem);
+    font-weight: 900;
+    color: var(--accent);
+    text-shadow: var(--glow);
+    letter-spacing: 6px;
+    text-align: center;
+  }
+
+  #overlay h1 .red { color: var(--accent2); text-shadow: var(--glow2); }
+
+  #overlay p {
+    color: var(--text);
+    font-size: 1rem;
+    letter-spacing: 1px;
+    text-align: center;
+    max-width: 480px;
+    line-height: 1.7;
+    opacity: 0.8;
+  }
+
+  #overlay .final-score {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 3rem;
+    font-weight: 900;
+    color: var(--accent3);
+    text-shadow: 0 0 30px rgba(127,255,0,0.8);
+  }
+
+  .btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    padding: 14px 48px;
+    background: transparent;
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    cursor: pointer;
+    text-transform: uppercase;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s;
+  }
+
+  .btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    transform: translateX(-100%);
+    transition: transform 0.2s;
+    z-index: -1;
+  }
+
+  .btn:hover {
+    color: var(--bg);
+    text-shadow: none;
+  }
+
+  .btn:hover::before { transform: translateX(0); }
+
+  /* Score pop animation */
+  @keyframes scorePop {
+    0% { transform: translateY(0) scale(1); opacity: 1; }
+    100% { transform: translateY(-80px) scale(1.4); opacity: 0; }
+  }
+
+  .score-pop {
+    position: fixed;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 1.5rem;
+    pointer-events: none;
+    z-index: 150;
+    animation: scorePop 0.7s ease-out forwards;
+  }
+
+  /* Streak indicator */
+  #streak {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    color: var(--warn);
+    text-shadow: 0 0 15px rgba(255,204,0,0.8);
+    min-width: 60px;
+    text-align: center;
+  }
+
+  /* Draw guide overlay */
+  #draw-guide {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 90;
+    opacity: 0;
+    transition: opacity 0.3s;
+    text-align: center;
+  }
+
+  #draw-guide.visible { opacity: 1; }
+
+  #draw-guide svg {
+    display: block;
+    margin: 0 auto 12px;
+    filter: drop-shadow(0 0 10px var(--accent2));
+  }
+
+  #draw-guide-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
+    color: var(--accent2);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="logo">REAK<span>TI</span>X</div>
+  <div id="hud-center">
+    <div class="hud-item">
+      <div class="hud-label">Treffer</div>
+      <div class="hud-value" id="hits-display">0</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">Streak</div>
+      <div id="streak">—</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">Level</div>
+      <div class="hud-value" id="level-display">1</div>
+    </div>
+  </div>
+  <div>
+    <div id="score-label">PUNKTE</div>
+    <div id="score-display">0</div>
+  </div>
+</div>
+
+<div id="timer-bar-container">
+  <div id="timer-bar"></div>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="instruction">Klicke auf das Ziel!</div>
+
+<!-- Draw guide -->
+<div id="draw-guide">
+  <svg id="draw-guide-svg" width="120" height="120" viewBox="0 0 120 120"></svg>
+  <div id="draw-guide-text">Male die Form!</div>
+</div>
+
+<!-- Overlay (Start/End) -->
+<div id="overlay">
+  <h1>REAK<span class="red">TI</span>X</h1>
+  <p>Klicke auf leuchtende Ziele · Male Formen mit gedrückter Maustaste<br>Sei schnell — jeder Treffer zählt!</p>
+  <button class="btn" id="startBtn">STARTEN</button>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+const scoreDisplay = document.getElementById('score-display');
+const hitsDisplay = document.getElementById('hits-display');
+const levelDisplay = document.getElementById('level-display');
+const streakEl = document.getElementById('streak');
+const timerBar = document.getElementById('timer-bar');
+const instruction = document.getElementById('instruction');
+const drawGuide = document.getElementById('draw-guide');
+const drawGuideSvg = document.getElementById('draw-guide-svg');
+const drawGuideText = document.getElementById('draw-guide-text');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight - 60;
+}
+resize();
+window.addEventListener('resize', () => { resize(); if(gameRunning) spawnTarget(); });
+
+// ─── Audio ────────────────────────────────────────────────────────────
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playClickSound() {
+  // Bright synth "pop" on circle click
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 1200;
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.12);
+  gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.18);
+  osc.start(audioCtx.currentTime);
+  osc.stop(audioCtx.currentTime + 0.18);
+}
+
+function playDrawSuccessSound() {
+  // Ascending chime for draw success
+  [523, 659, 784, 1047].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'triangle';
+    const t = audioCtx.currentTime + i * 0.08;
+    osc.frequency.setValueAtTime(freq, t);
+    gain.gain.setValueAtTime(0.25, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    osc.start(t);
+    osc.stop(t + 0.25);
+  });
+}
+
+function playMissSound() {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.25);
+  gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+  osc.start(audioCtx.currentTime);
+  osc.stop(audioCtx.currentTime + 0.25);
+}
+
+// Timer tick – urgency beeps when time is running out
+let lastTickPct = 1;
+function playTimerTick(pct) {
+  // Only beep when crossing 33% and 15% thresholds, then every ~10% below 33%
+  const shouldBeep = pct < 0.33 && Math.floor(lastTickPct * 10) > Math.floor(pct * 10);
+  lastTickPct = pct;
+  if (!shouldBeep) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.type = 'square';
+  const freq = pct < 0.15 ? 880 : 440;
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
+  osc.start(audioCtx.currentTime);
+  osc.stop(audioCtx.currentTime + 0.06);
+}
+
+// Game state
+let score = 0, hits = 0, streak = 0, level = 1;
+let gameRunning = false;
+let currentTask = null; // { type: 'click'|'draw', ... }
+let taskTimer = 0, taskMaxTime = 3000;
+let lastTime = 0;
+let animId;
+let drawingPoints = [];
+let isDrawing = false;
+let particles = [];
+let ripples = [];
+
+// ─── Particle system ───────────────────────────────────────────────
+function spawnParticles(x, y, color, count=18) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 5;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1,
+      decay: 0.025 + Math.random() * 0.03,
+      size: 2 + Math.random() * 4,
+      color
+    });
+  }
+}
+
+function spawnRipple(x, y, color) {
+  ripples.push({ x, y, r: 0, maxR: 80, life: 1, color });
+}
+
+// ─── Score pop ──────────────────────────────────────────────────────
+function showScorePop(x, y, text, color='#7fff00') {
+  const el = document.createElement('div');
+  el.className = 'score-pop';
+  el.textContent = text;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  el.style.color = color;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 700);
+}
+
+// ─── Target types ───────────────────────────────────────────────────
+const COLORS = ['#00f5ff','#ff0080','#7fff00','#ffcc00','#bf5fff'];
+
+function randomPos(margin=80) {
+  return {
+    x: margin + Math.random() * (W - margin*2),
+    y: margin + Math.random() * (H - margin*2)
+  };
+}
+
+function spawnTarget() {
+  // Every 4th task (roughly) is a draw task after level 2
+  const doDrawTask = level >= 2 && hits > 0 && hits % 4 === 0;
+  clearDrawGuide();
+
+  if (doDrawTask) {
+    const shapes = ['circle','square'];
+    const shape = shapes[Math.floor(Math.random() * shapes.length)];
+    const minSize = 40 + level * 5;
+    const maxSize = 80 + level * 10;
+    currentTask = { type: 'draw', shape, minSize, maxSize };
+    taskMaxTime = Math.max(4000, 6000 - level * 200);
+    showDrawGuide(shape);
+    instruction.textContent = `Male ein${shape==='circle'?' Kreis':' Viereck'} (Maustaste gedrückt halten)`;
+  } else {
+    const pos = randomPos();
+    const size = 20 + Math.random() * 30 - level * 1.5;
+    const r = Math.max(14, size);
+    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    const pulsing = Math.random() > 0.5;
+    currentTask = { type: 'click', x: pos.x, y: pos.y, r, color, pulsing, born: performance.now() };
+    taskMaxTime = Math.max(1200, 3000 - level * 150);
+    instruction.textContent = 'Klicke auf das Ziel!';
+  }
+  taskTimer = 0;
+  lastTickPct = 1;
+}
+
+// ─── Draw guide SVG ─────────────────────────────────────────────────
+function showDrawGuide(shape) {
+  drawGuideSvg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+  let el;
+  if (shape === 'circle') {
+    el = document.createElementNS(ns, 'circle');
+    el.setAttribute('cx','60'); el.setAttribute('cy','60'); el.setAttribute('r','45');
+    el.setAttribute('fill','none'); el.setAttribute('stroke','#ff0080'); el.setAttribute('stroke-width','3');
+    el.setAttribute('stroke-dasharray','8 4');
+  } else if (shape === 'triangle') {
+    el = document.createElementNS(ns, 'polygon');
+    el.setAttribute('points','60,10 110,100 10,100');
+    el.setAttribute('fill','none'); el.setAttribute('stroke','#ff0080'); el.setAttribute('stroke-width','3');
+    el.setAttribute('stroke-dasharray','8 4');
+  } else {
+    el = document.createElementNS(ns, 'rect');
+    el.setAttribute('x','15'); el.setAttribute('y','15'); el.setAttribute('width','90'); el.setAttribute('height','90');
+    el.setAttribute('fill','none'); el.setAttribute('stroke','#ff0080'); el.setAttribute('stroke-width','3');
+    el.setAttribute('stroke-dasharray','8 4');
+  }
+  drawGuideSvg.appendChild(el);
+  drawGuide.classList.add('visible');
+  drawGuideText.textContent = `Male: ${shape==='circle'?'KREIS':'VIERECK'}`;
+}
+
+function clearDrawGuide() {
+  drawGuide.classList.remove('visible');
+  drawGuideSvg.innerHTML = '';
+}
+
+// ─── Drawing analysis ────────────────────────────────────────────────
+function analyzeDrawing(pts, shape) {
+  if (pts.length < 10) return false;
+
+  // Bounding box
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const minX=Math.min(...xs), maxX=Math.max(...xs);
+  const minY=Math.min(...ys), maxY=Math.max(...ys);
+  const bw = maxX-minX, bh = maxY-minY;
+  const size = Math.max(bw, bh);
+
+  if (size < currentTask.minSize) return false;
+
+  // Check if closed (start near end)
+  const dx = pts[0].x - pts[pts.length-1].x;
+  const dy = pts[0].y - pts[pts.length-1].y;
+  const closed = Math.sqrt(dx*dx+dy*dy) < size * 0.45;
+
+  if (shape === 'circle') {
+    if (!closed) return false;
+    // Center
+    const cx = (minX+maxX)/2, cy = (minY+maxY)/2;
+    // All points roughly equidistant from center
+    const dists = pts.map(p=>Math.sqrt((p.x-cx)**2+(p.y-cy)**2));
+    const avgD = dists.reduce((a,b)=>a+b,0)/dists.length;
+    const variance = dists.reduce((a,b)=>a+(b-avgD)**2,0)/dists.length;
+    return variance / (avgD*avgD) < 0.25;
+
+  } else if (shape === 'square') {
+    if (!closed) return false;
+    // Aspect ratio close to 1
+    const ratio = bw/bh;
+    return ratio > 0.5 && ratio < 2.0;
+
+  } else if (shape === 'triangle') {
+    if (!closed) return false;
+    // Find corners using direction changes
+    const corners = findCorners(pts);
+    return corners >= 3;
+  }
+  return false;
+}
+
+function findCorners(pts) {
+  // Simplify and count sharp turns
+  let corners = 0;
+  const step = Math.max(1, Math.floor(pts.length / 30));
+  for (let i = step; i < pts.length - step; i += step) {
+    const prev = pts[i-step], cur = pts[i], next = pts[i+step];
+    const a = { x: cur.x-prev.x, y: cur.y-prev.y };
+    const b = { x: next.x-cur.x, y: next.y-cur.y };
+    const lenA = Math.sqrt(a.x*a.x+a.y*a.y);
+    const lenB = Math.sqrt(b.x*b.x+b.y*b.y);
+    if (lenA < 2 || lenB < 2) continue;
+    const dot = (a.x*b.x+a.y*b.y)/(lenA*lenB);
+    if (dot < 0.2) corners++;
+  }
+  return corners;
+}
+
+// ─── Scoring ─────────────────────────────────────────────────────────
+function addScore(points, x, y) {
+  score += points;
+  hits++;
+  streak++;
+  if (streak >= 5) {
+    const bonus = Math.floor(streak / 5) * 5;
+    score += bonus;
+    showScorePop(x, y - 40, `STREAK x${streak}!`, '#ffcc00');
+  }
+  scoreDisplay.textContent = score;
+  hitsDisplay.textContent = hits;
+  streakEl.textContent = streak >= 3 ? `🔥${streak}` : `${streak}`;
+  level = 1 + Math.floor(hits / 8);
+  levelDisplay.textContent = level;
+}
+
+function missTask() {
+  streak = 0;
+  streakEl.textContent = '—';
+  audioCtx.resume();
+  playMissSound();
+  // Flash screen red briefly
+  canvas.style.outline = '4px solid #ff0040';
+  setTimeout(() => canvas.style.outline = '', 300);
+}
+
+// ─── Canvas drawing ───────────────────────────────────────────────────
+function drawClickTarget(task, t) {
+  const { x, y, r, color, born, pulsing } = task;
+  const age = (performance.now() - born) / 1000;
+  const pulse = pulsing ? 1 + 0.15 * Math.sin(age * 8) : 1;
+  const pr = r * pulse;
+
+  // Outer glow ring
+  const timeLeft = 1 - taskTimer / taskMaxTime;
+  ctx.beginPath();
+  ctx.arc(x, y, pr + 12, 0, Math.PI * 2 * timeLeft);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([]);
+  ctx.stroke();
+
+  // Inner fill
+  ctx.beginPath();
+  ctx.arc(x, y, pr, 0, Math.PI * 2);
+  ctx.fillStyle = color + '22';
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Cross-hair
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath(); ctx.moveTo(x-pr*1.5, y); ctx.lineTo(x+pr*1.5, y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, y-pr*1.5); ctx.lineTo(x, y+pr*1.5); ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Glow
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 20 + 10*Math.sin(age*6);
+  ctx.beginPath();
+  ctx.arc(x, y, pr * 0.4, 0, Math.PI*2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+function drawDrawingPath() {
+  if (drawingPoints.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(drawingPoints[0].x, drawingPoints[0].y);
+  for (let i = 1; i < drawingPoints.length; i++) {
+    ctx.lineTo(drawingPoints[i].x, drawingPoints[i].y);
+  }
+  ctx.strokeStyle = '#ff0080';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = '#ff0080';
+  ctx.shadowBlur = 10;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length-1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.1; // gravity
+    p.life -= p.decay;
+    if (p.life <= 0) { particles.splice(i,1); continue; }
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size*p.life, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function updateRipples() {
+  for (let i = ripples.length-1; i >= 0; i--) {
+    const r = ripples[i];
+    r.r += 4; r.life -= 0.04;
+    if (r.life <= 0) { ripples.splice(i,1); continue; }
+    ctx.globalAlpha = r.life * 0.6;
+    ctx.strokeStyle = r.color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, r.r, 0, Math.PI*2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ─── Timer bar ───────────────────────────────────────────────────────
+function updateTimerBar() {
+  const pct = Math.max(0, 1 - taskTimer / taskMaxTime);
+  timerBar.style.width = (pct * 100) + '%';
+  const hue = pct > 0.5 ? 180 : pct > 0.25 ? 45 : 0;
+  timerBar.style.background = `hsl(${hue},100%,55%)`;
+  playTimerTick(pct);
+}
+
+// ─── Game loop ───────────────────────────────────────────────────────
+function gameLoop(ts) {
+  if (!gameRunning) return;
+  const dt = ts - lastTime;
+  lastTime = ts;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Background scanlines
+  ctx.fillStyle = 'rgba(5,5,20,0.15)';
+  for (let y = 0; y < H; y += 4) {
+    ctx.fillRect(0, y, W, 1);
+  }
+
+  updateRipples();
+  updateParticles(dt);
+
+  if (currentTask) {
+    taskTimer += dt;
+    updateTimerBar();
+
+    if (currentTask.type === 'click') {
+      drawClickTarget(currentTask, taskTimer);
+    }
+    // Draw task: user draws, evaluated on mouseup
+    drawDrawingPath();
+
+    if (taskTimer >= taskMaxTime) {
+      missTask();
+      drawingPoints = [];
+      isDrawing = false;
+      spawnTarget();
+    }
+  }
+
+  animId = requestAnimationFrame(gameLoop);
+}
+
+// ─── Input handlers ───────────────────────────────────────────────────
+canvas.addEventListener('click', e => {
+  if (!gameRunning || !currentTask || currentTask.type !== 'click') return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const { x, y, r, color } = currentTask;
+  const dist = Math.sqrt((mx-x)**2+(my-y)**2);
+  if (dist <= r + 8) {
+    audioCtx.resume();
+    playClickSound();
+    const timeBonus = Math.floor((1 - taskTimer/taskMaxTime) * 50);
+    const pts = 10 + timeBonus + level * 2;
+    addScore(pts, mx, my);
+    spawnParticles(x, y, color);
+    spawnRipple(x, y, color);
+    showScorePop(x-20, y-20, `+${pts}`);
+    spawnTarget();
+  } else {
+    streak = 0;
+    streakEl.textContent = '—';
+  }
+});
+
+canvas.addEventListener('mousedown', e => {
+  if (!gameRunning || !currentTask || currentTask.type !== 'draw') return;
+  isDrawing = true;
+  drawingPoints = [];
+  const rect = canvas.getBoundingClientRect();
+  drawingPoints.push({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!isDrawing) return;
+  const rect = canvas.getBoundingClientRect();
+  drawingPoints.push({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (!isDrawing || !currentTask || currentTask.type !== 'draw') return;
+  isDrawing = false;
+  const success = analyzeDrawing(drawingPoints, currentTask.shape);
+  const cx = drawingPoints.reduce((a,p)=>a+p.x,0)/drawingPoints.length;
+  const cy = drawingPoints.reduce((a,p)=>a+p.y,0)/drawingPoints.length;
+
+  if (success) {
+    audioCtx.resume();
+    playDrawSuccessSound();
+    const timeBonus = Math.floor((1 - taskTimer/taskMaxTime) * 60);
+    const pts = 20 + timeBonus + level * 3;
+    addScore(pts, cx, cy);
+    spawnParticles(cx, cy, '#ff0080', 30);
+    spawnRipple(cx, cy, '#ff0080');
+    showScorePop(cx-20, cy-30, `+${pts}`, '#ff0080');
+    clearDrawGuide();
+    drawingPoints = [];
+    spawnTarget();
+  } else {
+    // Allow retry within time
+    showScorePop(cx, cy, 'Falsch!', '#ff4040');
+    drawingPoints = [];
+  }
+});
+
+// Touch support
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const me = new MouseEvent('mousedown', { clientX: t.clientX, clientY: t.clientY });
+  canvas.dispatchEvent(me);
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const me = new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY });
+  canvas.dispatchEvent(me);
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  canvas.dispatchEvent(new MouseEvent('mouseup'));
+  // Also check click
+  if (currentTask && currentTask.type === 'click' && !isDrawing) {
+    const t = e.changedTouches[0];
+    canvas.dispatchEvent(new MouseEvent('click', { clientX: t.clientX, clientY: t.clientY }));
+  }
+}, { passive: false });
+
+// ─── Start / Stop ─────────────────────────────────────────────────────
+function startGame() {
+  audioCtx.resume();
+  score = 0; hits = 0; streak = 0; level = 1;
+  scoreDisplay.textContent = '0';
+  hitsDisplay.textContent = '0';
+  streakEl.textContent = '—';
+  levelDisplay.textContent = '1';
+  particles = []; ripples = [];
+  drawingPoints = []; isDrawing = false;
+  overlay.style.display = 'none';
+  gameRunning = true;
+  lastTime = performance.now();
+  spawnTarget();
+  animId = requestAnimationFrame(gameLoop);
+
+  // 60-second game
+  setTimeout(endGame, 60000);
+}
+
+function endGame() {
+  gameRunning = false;
+  cancelAnimationFrame(animId);
+  clearDrawGuide();
+  overlay.style.display = 'flex';
+  overlay.innerHTML = `
+    <h1>SPIEL<span class="red"> VORBEI</span></h1>
+    <p>Du hast <strong>${hits}</strong> Aufgaben gelöst mit einem Streak von <strong>${streak > 0 ? streak : 0}</strong>!</p>
+    <div class="final-score">${score} P.</div>
+    <button class="btn" id="startBtn">NOCHMAL</button>
+  `;
+  document.getElementById('startBtn').addEventListener('click', startGame);
+}
+
+startBtn.addEventListener('click', startGame);
+</script>
+</body>
+</html>
